@@ -1,7 +1,7 @@
 [project]
 name = "insurance-agent-demo"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "A learning-oriented insurance customer service Agent built with FastAPI, SQLite, and an OpenAI-compatible model gateway."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -11,6 +11,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "openai>=3.7.0",
     "pydantic>=2.13.5",
+    "python-dotenv>=1.2.3",
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.52",
     "uvicorn>=0.52.4",

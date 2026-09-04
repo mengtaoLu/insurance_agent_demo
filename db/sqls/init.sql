@@ -43,7 +43,7 @@ create table if not exists messages (
         constraint messages_chat_id_fk
             references chat(id),
     role text not null,
-    content text not null,
+    content text,
     created_at text not null default current_timestamp,
-    metadata text 
+    metadata text
 )

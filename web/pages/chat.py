@@ -7,8 +7,15 @@ from web.utils import get_current_user, get_db
 from db.services.chats import create_new_chat
 from sqlalchemy import select
 from db.entities import Chat, Messages, User
+from agent.llm.models import Model
+from agent.tools.tools import tools
+from db.services.messages import get_messages_by_chat_id
 
 app = APIRouter()
+
+model = Model(
+    "你是一个保险金融的agent助手，可以帮助用户处理保单咨询问题，理赔问题等。"
+)
 
 templates = Jinja2Templates(directory="templates")
 
@@ -94,6 +101,19 @@ async def to_new_chat(
 
     chat.updated_at = datetime.now()
 
+    db.commit()
+
+    ## 查询历史消息
+    messages = get_messages_by_chat_id(chat_id,db)
+
+    # 接入llm
+    response = model.chat(
+        chat_id=chat_id,
+        messages=messages,
+        tools=tools
+    )
+
+    db.add(response)
     db.commit()
 
     return RedirectResponse(

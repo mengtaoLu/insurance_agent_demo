@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from db.entities import Messages
 
-def get_messages_by_chat_id(chat_id:int,db:Session):
+def get_messages_by_chat_id(chat_id:int,db:Session) -> list[Messages]:
     messages = db.scalars(
         select(Messages)
         .where(Messages.chat_id == chat_id)

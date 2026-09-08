@@ -25,3 +25,10 @@ def create_new_message(
 
     db.add(message)
     db.commit()
+
+def save_message(
+        message:Messages,
+        db:Session
+):
+    db.add(message)
+    db.commit()

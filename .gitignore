@@ -10,3 +10,9 @@ wheels/
 .venv
 
 .env
+
+# Local SQLite runtime data
+/data.db
+/data.db-journal
+/data.db-shm
+/data.db-wal

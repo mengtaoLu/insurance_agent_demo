@@ -8,7 +8,6 @@ from db.services.chats import create_new_chat
 from sqlalchemy import select
 from db.entities import Chat, Messages, User
 from agent.llm.models import Model
-from agent.tools.tools import tools
 from db.services.messages import get_messages_by_chat_id
 
 app = APIRouter()
@@ -103,18 +102,7 @@ async def to_new_chat(
 
     db.commit()
 
-    ## 查询历史消息
-    messages = get_messages_by_chat_id(chat_id,db)
-
-    # 接入llm
-    response = model.chat(
-        chat_id=chat_id,
-        messages=messages,
-        tools=tools
-    )
-
-    db.add(response)
-    db.commit()
+    model.run(chat_id=chat_id,db=db,user_input=message)
 
     return RedirectResponse(
         url=f"/chat/{chat.id}",

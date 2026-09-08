@@ -5,17 +5,27 @@ import os
 from db.entities import Messages
 from openai.types.chat import ChatCompletion
 from agent.tools.tool_spec import ToolSpec
+from agent.tools.tool_call import ToolCall,transfer_raw_call
+from agent.tools.tool_registry import default_tool_registry,ToolRegistry
+from agent.tools.tool_executor import ToolExecutor
+from agent.tools.tool_context import ToolContext
+from typing import Any
+from db.services.messages import get_messages_by_chat_id,save_message
+from uuid import uuid4
 
 load_dotenv()
 
 class Model:
 
-    def __init__(self,system_prompt:str,temperature:float=0.7) -> None:
+    def __init__(self,system_prompt:str,
+                 temperature:float=0.7,
+                 tool_registry:ToolRegistry = default_tool_registry) -> None:
         self.model_name = os.getenv("model_name")
         self.model_temperature = temperature
         self.base_url = os.getenv("base_url")
         self.api_key = os.getenv("api_key")
         self.system_prompt = system_prompt
+        self.tool_registry = tool_registry
 
         self.client = OpenAI(
             base_url=self.base_url,
@@ -24,22 +34,13 @@ class Model:
         )
 
     def chat(self,chat_id:int,
-             messages:list[Messages],
-             tools:list[ToolSpec]=[]):
-        # 简单组装上下文
-        real_messages:list[dict] = [{
-            "role":"assistant",
-            "content": self.system_prompt
-        }]
-
-        for message in messages:
-            real_messages.append(self._to_openai_message(message))
+             messages:list[Any],tools:list[dict[str,Any]]):
 
         response = self.client.chat.completions.create(
-            messages=real_messages,
+            messages=messages,
             model=self.model_name,
             temperature=self.model_temperature,
-            tools=[ t.tool_schema for t in tools]
+            tools=tools
         )
 
         return self._to_system_messag_from_openai(chat_id,response)
@@ -102,3 +103,82 @@ class Model:
             }
 
         return message
+
+    def run(self,user_input:str,chat_id:int,db):
+        """ReAct循环"""
+        max_steps = 5
+
+                # 简单组装上下文
+        real_messages:list[dict] = [{
+            "role":"system",
+            "content": self.system_prompt
+        }]
+
+        ## 简单搜索消息
+        messages = get_messages_by_chat_id(chat_id,db)
+
+        for message in messages:
+            real_messages.append(self._to_openai_message(message))
+
+        # 工具
+        print("==========tool registry==========")
+        print(f"{len(self.tool_registry.get_tools())}")
+        print("==========tool registry==========")
+
+        tools = [ t.tool_schema for t in default_tool_registry.get_tools().values()]
+
+        # 当前的
+        now_step = 0
+
+        while now_step < max_steps:
+            now_step += 1
+            print(f"=============ReAct循环第 【{now_step}】 步=======================")
+            response = self.chat(
+                chat_id=chat_id,
+                messages=real_messages,
+                tools=tools
+            )
+            print(f"LLM回复答案：{response}")
+            # 保存下来，统一存到db
+            save_message(response,db)
+            real_messages.append(self._to_openai_message(response))
+
+            if response.metadata_ and response.metadata_.get('tool_calls'):
+                tool_call_dict_list = response.metadata_.get("tool_calls")
+                # 有工具调用，转换为ToolCall
+                tool_call_list =[
+                    transfer_raw_call(t)
+                    for t in tool_call_dict_list
+                ]
+
+                # 执行工具
+                tool_excutor = ToolExecutor(tool_call_list)
+                results = tool_excutor.handler()
+
+                for r in results:
+                    tool_message = r.to_system_tool_message(chat_id=chat_id)
+                    # 保存到上下文中，历史消息记录中
+                    real_messages.append(self._to_openai_message(tool_message))
+
+                    # 后续统一保存消息记录
+                    save_message(tool_message,db)
+            else:
+                # 没有工具调用，直接输出
+                return response
+
+        ## 超过了最大步数，应该终止
+        prompt = f"""当前已经达到最大步数，请根据用户的问题，进行最终总结。"""
+        message = Messages(
+            chat_id=chat_id,
+            role = 'assistant',
+            content = prompt
+        )
+        save_message(message=message,db=db)
+        real_messages.append(self._to_openai_message(message))
+
+        response = self.chat(
+                chat_id=chat_id,
+                messages=real_messages,
+                tools=tools
+            )
+        return response

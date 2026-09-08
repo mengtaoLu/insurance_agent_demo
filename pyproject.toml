@@ -1,6 +1,6 @@
 [project]
 name = "insurance-agent-demo"
-version = "0.2.0"
+version = "0.3.0"
 description = "A learning-oriented insurance customer service Agent built with FastAPI, SQLite, and an OpenAI-compatible model gateway."
 readme = "README.md"
 requires-python = ">=3.14"

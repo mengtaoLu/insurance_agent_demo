@@ -1,5 +1,17 @@
 from sqlalchemy.orm import declarative_base,relationship,mapped_column,Mapped
-from sqlalchemy import Column,Text,Integer,String,DateTime,func,ForeignKey,JSON
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from datetime import datetime
 
 Base = declarative_base()
@@ -65,3 +77,54 @@ class Messages(Base):
         JSON,
         nullable=True
     )
+
+    def __str__(self):
+        import json
+        from sqlalchemy import inspect
+
+        mapper = inspect(self).mapper
+        data = {attr.key: getattr(self, attr.key) for attr in mapper.column_attrs}
+        return json.dumps(data, ensure_ascii=False, indent=2, default=str)
+
+
+class TraceEvent(Base):
+    """一次 Agent 运行中的单个可观测事件。"""
+
+    __tablename__ = "trace_event"
+    __table_args__ = (
+        UniqueConstraint("trace_id", "sequence_no", name="uq_trace_event_sequence"),
+        CheckConstraint(
+            "status IN ('pending', 'running', 'success', 'fail')",
+            name="ck_trace_event_status",
+        ),
+        CheckConstraint("turn_no >= 0", name="ck_trace_event_turn_no"),
+        CheckConstraint("step_no >= 0", name="ck_trace_event_step_no"),
+        CheckConstraint("sequence_no >= 0", name="ck_trace_event_sequence_no"),
+        Index("idx_trace_event_trace", "trace_id", "sequence_no"),
+        Index("idx_trace_event_chat", "chat_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    trace_id: Mapped[str] = mapped_column(String, nullable=False)
+    chat_id: Mapped[int] = mapped_column(
+        ForeignKey("chat.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    turn_no: Mapped[int] = mapped_column(nullable=False)
+    step_no: Mapped[int] = mapped_column(nullable=False)
+    sequence_no: Mapped[int] = mapped_column(nullable=False)
+    event_type: Mapped[str] = mapped_column(String, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[str | None] = mapped_column(String, nullable=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    finish_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        server_default=func.current_timestamp(),
+        nullable=False,
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

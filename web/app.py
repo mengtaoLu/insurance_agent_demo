@@ -4,6 +4,10 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from web.pages.login import app as LoginApp
 from web.pages.chat import app as ChatApp
 
+from agent.tools.tool_registry import load_buildin_tools
+
+load_buildin_tools()
+
 app = FastAPI()
 app.include_router(LoginApp)
 app.include_router(ChatApp)

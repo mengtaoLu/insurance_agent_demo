@@ -6,7 +6,7 @@ db_path = Path(__file__).parent.parent / 'data.db'
 
 engine = create_engine(
     f"sqlite:///{db_path}",
-    echo=True, #打印sql
+    echo=False, #打印sql
     connect_args={"check_same_thread":False}
 )
 

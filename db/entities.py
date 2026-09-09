@@ -4,6 +4,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Float,
     Index,
     Integer,
     JSON,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     func,
 )
 from datetime import datetime
+from typing import Any
 
 Base = declarative_base()
 
@@ -86,6 +88,14 @@ class Messages(Base):
         data = {attr.key: getattr(self, attr.key) for attr in mapper.column_attrs}
         return json.dumps(data, ensure_ascii=False, indent=2, default=str)
 
+    def to_dict(self):
+        """返回可安全供其他模块调用的消息字典。"""
+        from sqlalchemy import inspect
+
+        mapper = inspect(self).mapper
+        data = {str(attr.key): getattr(self, attr.key) for attr in mapper.column_attrs}
+        return data
+
 
 class TraceEvent(Base):
     """一次 Agent 运行中的单个可观测事件。"""
@@ -117,9 +127,12 @@ class TraceEvent(Base):
     status: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str | None] = mapped_column(String, nullable=True)
     name: Mapped[str | None] = mapped_column(String, nullable=True)
+    prompt: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     finish_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    output_tokens_per_second: Mapped[float | None] = mapped_column(Float, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

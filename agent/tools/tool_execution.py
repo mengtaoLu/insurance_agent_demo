@@ -30,3 +30,6 @@ class ToolExecution(BaseModel):
                     },
                     role="tool"
                 )
+    def get_tool_result_content(self) -> str:
+        payload = self.result if self.tool_status == ToolStatus.SUCCESS else self.errors
+        return payload if isinstance(payload,str) else json.dumps(payload,ensure_ascii=False,default=str)

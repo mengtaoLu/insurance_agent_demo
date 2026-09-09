@@ -314,6 +314,293 @@
             cursor: not-allowed;
             opacity: 0.5;
         }
+
+        .trace-toggle-btn,
+        .trace-action-btn {
+            min-height: 44px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: white;
+            color: #374151;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .trace-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 14px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .trace-toggle-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2563eb;
+            box-shadow: 0 0 0 3px #dbeafe;
+        }
+
+        .trace-toggle-btn:hover,
+        .trace-action-btn:hover {
+            background: #f3f4f6;
+        }
+
+        .trace-toggle-btn:focus-visible,
+        .trace-action-btn:focus-visible,
+        .trace-detail summary:focus-visible {
+            outline: 3px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
+        .trace-drawer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 50;
+            width: min(430px, calc(100vw - 20px));
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+            border-left: 1px solid #dbe2ea;
+            box-shadow: -16px 0 40px rgba(15, 23, 42, 0.14);
+            transform: translateX(102%);
+            visibility: hidden;
+            transition: transform 200ms ease, visibility 200ms ease;
+        }
+
+        .trace-drawer.open {
+            transform: translateX(0);
+            visibility: visible;
+        }
+
+        .trace-drawer-header {
+            flex-shrink: 0;
+            padding: 16px 18px;
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .trace-drawer-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .trace-drawer-title {
+            margin: 0;
+            color: #111827;
+            font-size: 17px;
+            line-height: 1.4;
+        }
+
+        .trace-drawer-subtitle {
+            margin: 4px 0 0;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .trace-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .trace-action-btn {
+            padding: 0 12px;
+            font-size: 13px;
+        }
+
+        .trace-summary {
+            min-height: 38px;
+            padding: 10px 18px;
+            color: #475569;
+            background: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 12px;
+        }
+
+        .trace-list {
+            flex: 1;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            padding: 14px;
+        }
+
+        .trace-state {
+            margin: 28px 8px;
+            padding: 20px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 10px;
+            color: #64748b;
+            background: white;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .trace-state.error {
+            color: #991b1b;
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .trace-turn {
+            margin-bottom: 18px;
+        }
+
+        .trace-turn-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 2px 8px;
+            color: #334155;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .trace-id {
+            max-width: 185px;
+            overflow: hidden;
+            color: #94a3b8;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 10px;
+            font-weight: 400;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .trace-event {
+            margin-bottom: 8px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid #94a3b8;
+            border-radius: 10px;
+            background: white;
+        }
+
+        .trace-event.success {
+            border-left-color: #16a34a;
+        }
+
+        .trace-event.fail {
+            border-left-color: #dc2626;
+        }
+
+        .trace-event-top,
+        .trace-event-meta,
+        .trace-metrics {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .trace-event-top {
+            justify-content: space-between;
+        }
+
+        .trace-event-type {
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .trace-status {
+            padding: 2px 7px;
+            border-radius: 999px;
+            color: #475569;
+            background: #f1f5f9;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .trace-status.success {
+            color: #166534;
+            background: #dcfce7;
+        }
+
+        .trace-status.fail {
+            color: #991b1b;
+            background: #fee2e2;
+        }
+
+        .trace-event-meta {
+            margin-top: 7px;
+            color: #64748b;
+            font-size: 11px;
+        }
+
+        .trace-metrics {
+            margin-top: 9px;
+        }
+
+        .trace-metric {
+            padding: 4px 7px;
+            border-radius: 6px;
+            color: #334155;
+            background: #f1f5f9;
+            font-size: 11px;
+        }
+
+        .trace-error {
+            margin-top: 9px;
+            padding: 8px;
+            border-radius: 7px;
+            color: #991b1b;
+            background: #fef2f2;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .trace-detail {
+            margin-top: 8px;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 8px;
+        }
+
+        .trace-detail summary {
+            width: fit-content;
+            border-radius: 4px;
+            color: #475569;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .trace-detail pre {
+            max-height: 260px;
+            margin: 8px 0 0;
+            overflow: auto;
+            padding: 10px;
+            border-radius: 7px;
+            color: #dbeafe;
+            background: #0f172a;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        @media (max-width: 640px) {
+            .trace-toggle-btn {
+                padding: 0 10px;
+            }
+
+            .trace-drawer {
+                width: calc(100vw - 12px);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .trace-drawer {
+                transition: none;
+            }
+        }
     </style>
 </head>
 
@@ -376,6 +663,19 @@
 
         <div class="user-area">
 
+            {% if current_chat %}
+                <button
+                    type="button"
+                    class="trace-toggle-btn"
+                    id="trace-toggle"
+                    aria-controls="trace-drawer"
+                    aria-expanded="false"
+                >
+                    <span class="trace-toggle-dot" aria-hidden="true"></span>
+                    Trace
+                </button>
+            {% endif %}
+
             <span class="username">
                 {{ username }}
             </span>
@@ -436,6 +736,57 @@
     </main>
 
 </div>
+
+
+{% if current_chat %}
+    <aside
+        class="trace-drawer"
+        id="trace-drawer"
+        data-chat-id="{{ current_chat.id }}"
+        aria-hidden="true"
+        aria-label="当前会话 Trace"
+    >
+        <div class="trace-drawer-header">
+            <div class="trace-drawer-heading">
+                <div>
+                    <h2 class="trace-drawer-title">Agent Trace</h2>
+                    <p class="trace-drawer-subtitle">Chat #{{ current_chat.id }} · 手动刷新</p>
+                </div>
+
+                <div class="trace-actions">
+                    <button
+                        type="button"
+                        class="trace-action-btn"
+                        id="trace-refresh"
+                        aria-label="刷新 Trace"
+                    >
+                        刷新
+                    </button>
+                    <button
+                        type="button"
+                        class="trace-action-btn"
+                        id="trace-close"
+                        aria-label="关闭 Trace 侧栏"
+                    >
+                        关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="trace-summary" id="trace-summary">
+            打开侧栏后加载当前会话的 Trace
+        </div>
+
+        <div
+            class="trace-list"
+            id="trace-list"
+            aria-live="polite"
+        >
+            <div class="trace-state">尚未加载</div>
+        </div>
+    </aside>
+{% endif %}
 
 
 <!-- 输入框 -->
@@ -540,6 +891,251 @@
 
         sendButton.disabled = true;
         sendButton.textContent = "…";
+    });
+
+    const traceToggle = document.getElementById("trace-toggle");
+    const traceDrawer = document.getElementById("trace-drawer");
+    const traceRefresh = document.getElementById("trace-refresh");
+    const traceClose = document.getElementById("trace-close");
+    const traceSummary = document.getElementById("trace-summary");
+    const traceList = document.getElementById("trace-list");
+
+    const traceTypeNames = {
+        user_input: "用户输入",
+        llm_response: "LLM 响应",
+        tool_call: "工具调用",
+        agent_end: "Agent 结束",
+        error: "错误"
+    };
+
+    function createTraceElement(tagName, className, text) {
+        const element = document.createElement(tagName);
+        if (className) {
+            element.className = className;
+        }
+        if (text !== undefined && text !== null) {
+            element.textContent = String(text);
+        }
+        return element;
+    }
+
+    function formatTraceTime(value) {
+        if (!value) {
+            return "";
+        }
+        return String(value).replace("T", " ").replace("Z", "").slice(0, 19);
+    }
+
+    function addTraceDetail(card, title, value) {
+        if (value === null || value === undefined || value === "") {
+            return;
+        }
+
+        const detail = createTraceElement("details", "trace-detail");
+        const summary = createTraceElement("summary", "", title);
+        const pre = createTraceElement(
+            "pre",
+            "",
+            typeof value === "string" ? value : JSON.stringify(value, null, 2)
+        );
+        detail.append(summary, pre);
+        card.appendChild(detail);
+    }
+
+    function renderTraceEvent(event) {
+        const card = createTraceElement(
+            "article",
+            `trace-event ${event.status || ""}`
+        );
+
+        const top = createTraceElement("div", "trace-event-top");
+        top.append(
+            createTraceElement(
+                "span",
+                "trace-event-type",
+                traceTypeNames[event.event_type] || event.event_type
+            ),
+            createTraceElement(
+                "span",
+                `trace-status ${event.status || ""}`,
+                event.status
+            )
+        );
+        card.appendChild(top);
+
+        const meta = createTraceElement("div", "trace-event-meta");
+        meta.appendChild(createTraceElement("span", "", `Step ${event.step_no}`));
+        if (event.name) {
+            meta.appendChild(createTraceElement("span", "", `· ${event.name}`));
+        }
+        if (event.role) {
+            meta.appendChild(createTraceElement("span", "", `· ${event.role}`));
+        }
+        if (event.created_at) {
+            meta.appendChild(
+                createTraceElement("span", "", `· ${formatTraceTime(event.created_at)}`)
+            );
+        }
+        card.appendChild(meta);
+
+        const usage = event.usage || {};
+        const inputTokens = usage.prompt_tokens ?? usage.input_tokens;
+        const outputTokens = usage.completion_tokens ?? usage.output_tokens;
+        const totalTokens = usage.total_tokens;
+        const metrics = createTraceElement("div", "trace-metrics");
+
+        if (inputTokens !== undefined) {
+            metrics.appendChild(createTraceElement("span", "trace-metric", `输入 ${inputTokens} tokens`));
+        }
+        if (outputTokens !== undefined) {
+            metrics.appendChild(createTraceElement("span", "trace-metric", `输出 ${outputTokens} tokens`));
+        }
+        if (totalTokens !== undefined) {
+            metrics.appendChild(createTraceElement("span", "trace-metric", `合计 ${totalTokens}`));
+        }
+        if (event.duration_ms !== null && event.duration_ms !== undefined) {
+            const duration = event.duration_ms >= 1000
+                ? `${(event.duration_ms / 1000).toFixed(2)} 秒`
+                : `${event.duration_ms.toFixed(0)} 毫秒`;
+            metrics.appendChild(createTraceElement("span", "trace-metric", duration));
+        }
+        if (
+            event.output_tokens_per_second !== null
+            && event.output_tokens_per_second !== undefined
+        ) {
+            const speed = createTraceElement(
+                "span",
+                "trace-metric",
+                `约 ${event.output_tokens_per_second.toFixed(2)} token/s`
+            );
+            speed.title = "基于非流式请求总耗时计算的近似吞吐率";
+            metrics.appendChild(speed);
+        }
+        if (event.finish_reason) {
+            metrics.appendChild(
+                createTraceElement("span", "trace-metric", `结束：${event.finish_reason}`)
+            );
+        }
+        if (metrics.childElementCount > 0) {
+            card.appendChild(metrics);
+        }
+
+        if (event.error) {
+            card.appendChild(createTraceElement("div", "trace-error", event.error));
+        }
+
+        addTraceDetail(card, "查看内容", event.content);
+        addTraceDetail(card, "查看 Prompt 上下文", event.prompt);
+        addTraceDetail(card, "查看元数据", event.metadata);
+        return card;
+    }
+
+    function renderTraceEvents(events) {
+        traceList.replaceChildren();
+
+        if (!events.length) {
+            traceList.appendChild(
+                createTraceElement("div", "trace-state", "当前会话还没有 Trace 记录")
+            );
+            traceSummary.textContent = "0 个事件";
+            return;
+        }
+
+        const turns = new Map();
+        events.forEach((event) => {
+            if (!turns.has(event.turn_no)) {
+                turns.set(event.turn_no, []);
+            }
+            turns.get(event.turn_no).push(event);
+        });
+
+        turns.forEach((turnEvents, turnNo) => {
+            const section = createTraceElement("section", "trace-turn");
+            const heading = createTraceElement("div", "trace-turn-title");
+            heading.append(
+                createTraceElement("span", "", `Turn ${turnNo}`),
+                createTraceElement("span", "trace-id", turnEvents[0].trace_id)
+            );
+            section.appendChild(heading);
+            turnEvents.forEach((event) => section.appendChild(renderTraceEvent(event)));
+            traceList.appendChild(section);
+        });
+
+        const totalTokens = events.reduce(
+            (total, event) => total + Number(event.usage?.total_tokens || 0),
+            0
+        );
+        const llmCalls = events.filter((event) => event.event_type === "llm_response").length;
+        const toolCalls = events.filter((event) => event.event_type === "tool_call").length;
+        traceSummary.textContent = `${turns.size} 轮 · ${llmCalls} 次 LLM · ${toolCalls} 次工具 · ${totalTokens} tokens`;
+    }
+
+    async function loadTraceEvents() {
+        if (!traceDrawer || !traceList || !traceRefresh) {
+            return;
+        }
+
+        traceRefresh.disabled = true;
+        traceRefresh.textContent = "刷新中…";
+        traceList.setAttribute("aria-busy", "true");
+        traceList.replaceChildren(
+            createTraceElement("div", "trace-state", "正在加载 Trace…")
+        );
+
+        try {
+            const chatId = traceDrawer.dataset.chatId;
+            const response = await fetch(`/chat/${chatId}/traces`, {
+                headers: {"Accept": "application/json"},
+                cache: "no-store"
+            });
+            if (!response.ok) {
+                throw new Error(`加载失败（${response.status}）`);
+            }
+            const data = await response.json();
+            renderTraceEvents(data.events || []);
+        } catch (error) {
+            traceSummary.textContent = "Trace 加载失败";
+            traceList.replaceChildren(
+                createTraceElement(
+                    "div",
+                    "trace-state error",
+                    error instanceof Error ? error.message : "无法读取 Trace"
+                )
+            );
+        } finally {
+            traceList.removeAttribute("aria-busy");
+            traceRefresh.disabled = false;
+            traceRefresh.textContent = "刷新";
+        }
+    }
+
+    function openTraceDrawer() {
+        if (!traceDrawer || !traceToggle) {
+            return;
+        }
+        traceDrawer.classList.add("open");
+        traceDrawer.setAttribute("aria-hidden", "false");
+        traceToggle.setAttribute("aria-expanded", "true");
+        loadTraceEvents();
+    }
+
+    function closeTraceDrawer() {
+        if (!traceDrawer || !traceToggle) {
+            return;
+        }
+        traceDrawer.classList.remove("open");
+        traceDrawer.setAttribute("aria-hidden", "true");
+        traceToggle.setAttribute("aria-expanded", "false");
+        traceToggle.focus();
+    }
+
+    traceToggle?.addEventListener("click", openTraceDrawer);
+    traceRefresh?.addEventListener("click", loadTraceEvents);
+    traceClose?.addEventListener("click", closeTraceDrawer);
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && traceDrawer?.classList.contains("open")) {
+            closeTraceDrawer();
+        }
     });
 
     updateSendButton();

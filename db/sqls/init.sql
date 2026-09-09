@@ -68,9 +68,12 @@ CREATE TABLE IF NOT EXISTS trace_event (
                     ),
 
     name            TEXT,
+    prompt          TEXT CHECK (prompt IS NULL OR json_valid(prompt)),
     content         TEXT,
     usage           TEXT CHECK (usage IS NULL OR json_valid(usage)),
     finish_reason   TEXT,
+    duration_ms     REAL,
+    output_tokens_per_second REAL,
     error           TEXT,
     metadata        TEXT CHECK (metadata IS NULL OR json_valid(metadata)),
 

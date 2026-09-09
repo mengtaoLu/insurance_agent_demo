@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from db.entities import TraceEvent
@@ -11,9 +11,12 @@ TRACE_EVENT_STATUSES = {"pending", "running", "success", "fail"}
 TRACE_EVENT_ROLES = {"system", "user", "assistant", "tool"}
 TRACE_EVENT_UPDATE_FIELDS = {
     "status",
+    "prompt",
     "content",
     "usage",
     "finish_reason",
+    "duration_ms",
+    "output_tokens_per_second",
     "error",
     "metadata",
     "finished_at",
@@ -42,11 +45,15 @@ def create_trace_event(
     status: str = "pending",
     role: str | None = None,
     name: str | None = None,
+    prompt: list[dict[str, Any]] | None = None,
     content: str | None = None,
     usage: dict[str, Any] | None = None,
     finish_reason: str | None = None,
+    duration_ms: float | None = None,
+    output_tokens_per_second: float | None = None,
     error: str | None = None,
     metadata: dict[str, Any] | None = None,
+    finished_at: datetime | None = None,
 ) -> TraceEvent:
     """创建一条 Trace 事件并返回刷新后的 ORM 对象。"""
     if not trace_id.strip():
@@ -57,6 +64,8 @@ def create_trace_event(
         raise ValueError("turn_no、step_no、sequence_no 不能小于 0")
     _validate_status(status)
     _validate_role(role)
+    if status in {"success", "fail"} and finished_at is None:
+        finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
     event = TraceEvent(
         trace_id=trace_id,
@@ -68,11 +77,15 @@ def create_trace_event(
         status=status,
         role=role,
         name=name,
+        prompt=prompt,
         content=content,
         usage=usage,
         finish_reason=finish_reason,
+        duration_ms=duration_ms,
+        output_tokens_per_second=output_tokens_per_second,
         error=error,
         metadata_=metadata,
+        finished_at=finished_at,
     )
 
     try:
@@ -122,11 +135,23 @@ def get_trace_events_by_chat_id(
         db.scalars(
             select(TraceEvent)
             .where(TraceEvent.chat_id == chat_id)
-            .order_by(TraceEvent.id.desc())
+            .order_by(
+                TraceEvent.turn_no.desc(),
+                TraceEvent.sequence_no.asc(),
+            )
             .limit(limit)
             .offset(offset)
         ).all()
     )
+
+
+def get_max_turn_no_by_chat_id(chat_id: int, db: Session) -> int:
+    """查询会话当前最大的 turn_no；没有事件时返回 0。"""
+    max_turn_no = db.scalar(
+        select(func.max(TraceEvent.turn_no))
+        .where(TraceEvent.chat_id == chat_id)
+    )
+    return int(max_turn_no) if max_turn_no is not None else 0
 
 
 def update_trace_event(

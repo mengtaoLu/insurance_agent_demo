@@ -2,7 +2,7 @@ from agent.tools.tool_decorate import tool_decorate
 from typing import Annotated
 
 @tool_decorate()
-def query_insurance_detail(id:Annotated[int,'保单号']):
+def query_insurance_detail(id: Annotated[int, "保单号"]) -> dict:
     """根据保单号查询信息"""
 
     return {

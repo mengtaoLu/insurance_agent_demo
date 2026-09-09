@@ -1,3 +1,6 @@
+from utils.logging_config import setup_logging
+setup_logging() # 初始化日志
+
 from web.app import app
 import uvicorn as uv
 

@@ -1,4 +1,4 @@
-from openai import OpenAI
+from openai import AsyncOpenAI
 from copy import deepcopy
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -12,6 +12,9 @@ from agent.tools.tool_executor import ToolExecutor
 from typing import Any
 from db.services.messages import get_messages_by_chat_id,save_message
 from agent.trace.trace_controller import TraceController
+import logging
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -38,13 +41,13 @@ class Model:
         self.tool_registry = tool_registry
         self.trace_controller = TraceController()
 
-        self.client = OpenAI(
+        self.client = AsyncOpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
             timeout=30
         )
 
-    def chat(
+    async def chat(
         self,
         chat_id: int,
         messages: list[Any],
@@ -59,7 +62,7 @@ class Model:
             request_params["tools"] = tools
 
         started_at = perf_counter()
-        response = self.client.chat.completions.create(
+        response = await self.client.chat.completions.create(
             **request_params
         )
         duration_seconds = perf_counter() - started_at
@@ -114,8 +117,6 @@ class Model:
 
     def _to_system_messag_from_openai(self,chat_id:int,origin_message:ChatCompletion):
         """将openai message转为系统兼容message"""
-        print(f"==========")
-        print(f"origin_messages is : {origin_message}")
         message = Messages(
             chat_id=chat_id,
             role="assistant",
@@ -137,7 +138,7 @@ class Model:
 
         return message
 
-    def run(self,user_input:str,chat_id:int,db):
+    async def run(self,user_input:str,chat_id:int,db):
         """ReAct循环"""
         max_steps = 5
 
@@ -163,10 +164,7 @@ class Model:
         for message in messages:
             real_messages.append(self._to_openai_message(message))
 
-        # 工具
-        print("==========tool registry==========")
-        print(f"{len(self.tool_registry.get_tools())}")
-        print("==========tool registry==========")
+        logger.info(f"工具个数：{len(self.tool_registry.get_tools())}")
 
         tools = [t.tool_schema for t in self.tool_registry.get_tools().values()]
 
@@ -186,15 +184,16 @@ class Model:
 
         while now_step < max_steps:
             now_step += 1
-            print(f"=============ReAct循环第 【{now_step}】 步=======================")
+            logger.info(f"开始react循环：{now_step}")
+
             prompt_snapshot = deepcopy(real_messages)
-            llm_call = self.chat(
+            llm_call = await self.chat(
                 chat_id=chat_id,
                 messages=real_messages,
                 tools=tools
             )
             response = llm_call.message
-            print(f"LLM回复答案：{response}")
+            logger.info(f"LLM回复答案：{response}")
             # 保存下来，统一存到db
             save_message(response,db)
             real_messages.append(self._to_openai_message(response))
@@ -227,7 +226,7 @@ class Model:
 
                 # 执行工具
                 tool_excutor = ToolExecutor(tool_call_list)
-                results = tool_excutor.handler()
+                results = await tool_excutor.handler()
 
                 for r in results:
                     tool_message = r.to_system_tool_message(chat_id=chat_id)
@@ -258,7 +257,7 @@ class Model:
         prompt = f"""当前已经达到最大步数，请根据用户的问题，进行最终总结。"""
         real_messages.append({"role": "system", "content": prompt})
         prompt_snapshot = deepcopy(real_messages)
-        llm_call = self.chat(
+        llm_call = await self.chat(
             chat_id=chat_id,
             messages=real_messages,
             tools=None,

@@ -7,6 +7,9 @@ from agent.erros.tool_errors import ToolDescriptionNotFoundError
 from agent.tools.tool_registry import default_tool_registry
 import inspect
 from typing import get_type_hints
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ToolDecParam(BaseModel):
     """工具装饰类的参数
@@ -45,7 +48,7 @@ def tool_decorate(
     )
 
     def tool_wrapper(handler):
-        print(f"发现工具：{handler.__name__}")
+        logger.info(f"发现工具：{handler.__name__}")
         # 默认使用函数名当作工具名称
         tool_name = name if name is not None else handler.__name__
         tool_description = description if description is not None else inspect.getdoc(handler)

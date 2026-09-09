@@ -96,7 +96,7 @@ async def to_new_chat(
 
     db.commit()
 
-    model.run(chat_id=chat_id,db=db,user_input=message)
+    await model.run(chat_id=chat_id, db=db, user_input=message)
 
     return RedirectResponse(
         url=f"/chat/{chat.id}",

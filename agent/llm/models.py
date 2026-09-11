@@ -13,6 +13,14 @@ from typing import Any
 from db.services.messages import get_messages_by_chat_id,save_message
 from agent.trace.trace_controller import TraceController
 import logging
+from agent.plan.system_plan import (
+    plan_prompts,
+    PlanOutPut,
+    StepResult,
+    create_plan_from_message,
+)
+from uuid import uuid4
+from agent.context import ContextBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +34,17 @@ class LLMCallResult:
     finish_reason: str | None
     duration_ms: float
     output_tokens_per_second: float | None
+
+
+@dataclass(frozen=True)
+class ReactResult:
+    """一次 ReAct 循环的结果及其 Trace 游标。"""
+
+    message: Messages
+    trace_id: str
+    turn_no: int
+    sequence_no: int
+    react_steps: int
 
 
 class Model:
@@ -44,7 +63,7 @@ class Model:
         self.client = AsyncOpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
-            timeout=30
+            timeout=300
         )
 
     async def chat(
@@ -138,67 +157,92 @@ class Model:
 
         return message
 
-    async def run(self,user_input:str,chat_id:int,db):
-        """ReAct循环"""
-        max_steps = 5
-
-        # 简单组装上下文
-        real_messages:list[dict] = [{
-            "role":"system",
-            "content": self.system_prompt
+    async def run(
+        self,
+        user_input: str,
+        chat_id: int,
+        db,
+        persist_user_message: bool = True,
+    ):
+        """普通对话入口：保存消息、组装上下文并执行 ReAct。"""
+        real_messages: list[dict[str, Any]] = [{
+            "role": "system",
+            "content": self.system_prompt,
         }]
 
-        # 保存第一条 / 后续用户消息
-        user_message = Messages(
-            chat_id=chat_id,
-            role="user",
-            content=user_input
-        )
+        if persist_user_message:
+            user_message = Messages(
+                chat_id=chat_id,
+                role="user",
+                content=user_input,
+            )
+            db.add(user_message)
+            db.commit()
 
-        db.add(user_message)
-        db.commit()
-
-        ## 简单搜索消息
-        messages = get_messages_by_chat_id(chat_id,db)
-
-        for message in messages:
+        for message in get_messages_by_chat_id(chat_id, db):
             real_messages.append(self._to_openai_message(message))
 
-        logger.info(f"工具个数：{len(self.tool_registry.get_tools())}")
-
-        tools = [t.tool_schema for t in self.tool_registry.get_tools().values()]
-
-        # 当前的
-        now_step = 0
-
-        ## 记录刚开始
         first_trace = self.trace_controller.create_turn_start_event(
             chat_id=chat_id,
             user_input=user_input,
-            db=db
+            db=db,
         )
 
-        trace_seq_no = first_trace.sequence_no
-        turn_no = first_trace.turn_no
-        trace_id = first_trace.trace_id
+        result = await self.react(
+            chat_id=chat_id,
+            db=db,
+            context_messages=real_messages,
+            trace_id=first_trace.trace_id,
+            turn_no=first_trace.turn_no,
+            sequence_no=first_trace.sequence_no,
+        )
+        return result.message
+
+    async def react(
+        self,
+        *,
+        chat_id: int,
+        db,
+        context_messages: list[dict[str, Any]],
+        trace_id: str,
+        turn_no: int,
+        sequence_no: int = 0,
+        max_steps: int = 5,
+        step_no_base: int = 0,
+    ) -> ReactResult:
+        """执行完整 ReAct 循环。
+
+        调用方负责准备上下文、保存用户消息并创建首个 Trace 事件。
+        ``sequence_no`` 表示调用前最后一个 Trace 序号；返回结果中的
+        序号可用于下一次调用，以复用同一条 Trace。
+        """
+        if max_steps <= 0:
+            raise ValueError("max_steps 必须大于 0")
+        if sequence_no < 0 or step_no_base < 0:
+            raise ValueError("sequence_no 和 step_no_base 不能小于 0")
+
+        real_messages = deepcopy(context_messages)
+        tools = [
+            tool.tool_schema
+            for tool in self.tool_registry.get_tools().values()
+        ]
+        trace_seq_no = sequence_no
+        now_step = 0
 
         while now_step < max_steps:
             now_step += 1
-            logger.info(f"开始react循环：{now_step}")
+            logger.info("开始 ReAct 循环：%s", now_step)
 
             prompt_snapshot = deepcopy(real_messages)
             llm_call = await self.chat(
                 chat_id=chat_id,
                 messages=real_messages,
-                tools=tools
+                tools=tools,
             )
             response = llm_call.message
-            logger.info(f"LLM回复答案：{response}")
-            # 保存下来，统一存到db
-            save_message(response,db)
+            save_message(response, db)
             real_messages.append(self._to_openai_message(response))
 
-            ## 序列加1
             trace_seq_no += 1
             self.trace_controller.create_llm_response_trace(
                 trace_id=trace_id,
@@ -207,55 +251,52 @@ class Model:
                 prompt=prompt_snapshot,
                 turn_no=turn_no,
                 sequence_no=trace_seq_no,
-                step_no=now_step,
+                step_no=step_no_base + now_step,
                 usage=llm_call.usage,
                 finish_reason=llm_call.finish_reason,
                 duration_ms=llm_call.duration_ms,
                 output_tokens_per_second=llm_call.output_tokens_per_second,
                 model_name=self.model_name,
-                db=db
+                db=db,
             )
 
-            if response.metadata_ and response.metadata_.get('tool_calls'):
-                tool_call_dict_list = response.metadata_.get("tool_calls")
-                # 有工具调用，转换为ToolCall
-                tool_call_list =[
-                    transfer_raw_call(t)
-                    for t in tool_call_dict_list
-                ]
+            if not (response.metadata_ and response.metadata_.get("tool_calls")):
+                return ReactResult(
+                    message=response,
+                    trace_id=trace_id,
+                    turn_no=turn_no,
+                    sequence_no=trace_seq_no,
+                    react_steps=now_step,
+                )
 
-                # 执行工具
-                tool_excutor = ToolExecutor(tool_call_list)
-                results = await tool_excutor.handler()
+            tool_call_list = [
+                transfer_raw_call(raw_call)
+                for raw_call in response.metadata_["tool_calls"]
+            ]
+            tool_executor = ToolExecutor(tool_call_list, self.tool_registry)
+            results = await tool_executor.handler()
 
-                for r in results:
-                    tool_message = r.to_system_tool_message(chat_id=chat_id)
-                    # 保存到上下文中，历史消息记录中
-                    real_messages.append(self._to_openai_message(tool_message))
+            for result in results:
+                tool_message = result.to_system_tool_message(chat_id=chat_id)
+                real_messages.append(self._to_openai_message(tool_message))
+                save_message(tool_message, db)
 
-                    # 后续统一保存消息记录
-                    save_message(tool_message,db)
+                trace_seq_no += 1
+                self.trace_controller.create_tool_trace(
+                    db=db,
+                    trace_id=trace_id,
+                    chat_id=chat_id,
+                    turn_no=turn_no,
+                    step_no=step_no_base + now_step,
+                    tool_result=result,
+                    sequence_no=trace_seq_no,
+                )
 
-                    ## 保存trace
-                    trace_seq_no += 1
-                    self.trace_controller.create_tool_trace(
-                        db=db,
-                        trace_id=trace_id,
-                        chat_id=chat_id,
-                        turn_no=turn_no,
-                        step_no=now_step,
-                        tool_result=r,
-                        sequence_no=trace_seq_no
-                    )
-
-
-            else:
-                # 没有工具调用，直接输出
-                return response
-
-        ## 超过了最大步数，应该终止
-        prompt = f"""当前已经达到最大步数，请根据用户的问题，进行最终总结。"""
-        real_messages.append({"role": "system", "content": prompt})
+        # 达到最大 ReAct 步数后，禁用工具请求生成最终总结。
+        real_messages.append({
+            "role": "system",
+            "content": "当前已经达到最大步数，请根据用户的问题进行最终总结。",
+        })
         prompt_snapshot = deepcopy(real_messages)
         llm_call = await self.chat(
             chat_id=chat_id,
@@ -265,7 +306,6 @@ class Model:
         response = llm_call.message
         save_message(response, db)
 
-        ## 序列加1
         trace_seq_no += 1
         self.trace_controller.create_llm_response_trace(
             trace_id=trace_id,
@@ -274,13 +314,218 @@ class Model:
             prompt=prompt_snapshot,
             turn_no=turn_no,
             sequence_no=trace_seq_no,
-            step_no=now_step,
+            step_no=step_no_base + now_step,
             usage=llm_call.usage,
             finish_reason=llm_call.finish_reason,
             duration_ms=llm_call.duration_ms,
             output_tokens_per_second=llm_call.output_tokens_per_second,
             model_name=self.model_name,
-            db=db
+            db=db,
         )
 
-        return response
+        return ReactResult(
+            message=response,
+            trace_id=trace_id,
+            turn_no=turn_no,
+            sequence_no=trace_seq_no,
+            react_steps=now_step,
+        )
+
+    async def plan_execute(
+        self,
+        user_input: str,
+        chat_id: int,
+        db,
+        persist_user_message: bool = True,
+    ):
+        """进行plan-execute模式"""
+        ## 分解plan
+        logger.info(f"开始分解plan：{user_input}")
+
+        context_builder = ContextBuilder(type="plan")
+        plan_messages = context_builder.build_plan_context(
+            chat_id=chat_id,
+            db=db,
+            user_input=user_input,
+            json_schema=PlanOutPut.model_json_schema(),
+            tools=[t for t in self.tool_registry.get_tools().values()]
+        )
+
+        # 保存用户信息；Web 路由已经保存时关闭，避免重复记录。
+        if persist_user_message:
+            user_message = Messages(
+                chat_id=chat_id,
+                role="user",
+                content=user_input
+            )
+            db.add(user_message)
+            db.commit()
+
+        first_trace = self.trace_controller.create_turn_start_event(
+            chat_id=chat_id,
+            user_input=user_input,
+            db=db,
+        )
+        trace_id = first_trace.trace_id
+        turn_no = first_trace.turn_no
+        # trace_seq_no 始终表示当前 Trace 中最后一个已使用的序号。
+        trace_seq_no = first_trace.sequence_no
+        plan_prompt = [self._to_openai_message(m) for m in plan_messages]
+
+        started_at = perf_counter()
+        try:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                temperature=self.model_temperature,
+                messages=plan_prompt,
+                response_format={"type": "json_object"},
+            )
+        except Exception as exc:
+            duration_ms = (perf_counter() - started_at) * 1000
+            trace_seq_no += 1
+            self.trace_controller.create_plan_trace(
+                trace_id=trace_id,
+                chat_id=chat_id,
+                turn_no=turn_no,
+                step_no=1,
+                sequence_no=trace_seq_no,
+                prompt=plan_prompt,
+                content=None,
+                status="fail",
+                error=f"Plan 生成调用失败：{type(exc).__name__}: {exc}",
+                duration_ms=duration_ms,
+                db=db,
+                metadata={"phase": "generate_plan"},
+            )
+            raise
+
+        duration_ms = (perf_counter() - started_at) * 1000
+        usage = response.usage.model_dump(exclude_none=True) if response.usage else None
+        completion_tokens = usage.get("completion_tokens") if usage else None
+        output_tokens_per_second = (
+            completion_tokens / (duration_ms / 1000)
+            if completion_tokens is not None and duration_ms > 0
+            else None
+        )
+        raw_plan = response.choices[0].message.content
+
+        # 先记录模型确实生成了什么，再进行结构化解析。
+        trace_seq_no += 1
+        self.trace_controller.create_plan_trace(
+            trace_id=trace_id,
+            chat_id=chat_id,
+            turn_no=turn_no,
+            step_no=1,
+            sequence_no=trace_seq_no,
+            prompt=plan_prompt,
+            content=raw_plan,
+            status="success",
+            usage=usage,
+            finish_reason=response.choices[0].finish_reason,
+            duration_ms=duration_ms,
+            output_tokens_per_second=output_tokens_per_second,
+            model_name=self.model_name,
+            db=db,
+            metadata={"phase": "generate_plan"},
+        )
+
+        plan_parsed = False
+        try:
+            all_plans = create_plan_from_message(response=response)
+            plan_parsed = True
+
+            # react执行plan的步骤
+            step_results = []
+            for t in all_plans.steps:
+                logger.info(f"开始执行第{t.step_seq}步，目标：{t.description}")
+                step_message = context_builder.build_step_context(
+                    user_input=user_input,
+                    current_step=t.step_seq,
+                    full_plan=all_plans,
+                    results=step_results
+                )
+                step_response = await self.react(
+                    chat_id=chat_id,
+                    db=db,
+                    context_messages=step_message,
+                    trace_id=trace_id,
+                    turn_no=turn_no,
+                    sequence_no=trace_seq_no,
+                    step_no_base=t.step_seq - 1,
+                )
+                trace_seq_no = step_response.sequence_no
+                step_result = StepResult(
+                    step_seq=t.step_seq,
+                    step_result=step_response.message.content or "",
+                    status="success",
+                    errors=None,
+                )
+                step_results.append(step_result)
+                logger.info(
+                    "第%s步执行完成，执行结果为：%s",
+                    t.step_seq,
+                    step_result.step_result,
+                )
+
+            # 最终总结
+            result = await self.client.chat.completions.create(
+                messages=context_builder.build_final_plan_response(
+                    user_input=user_input,
+                    full_steps=all_plans,
+                    results=step_results
+                ),
+                model=self.model_name or "",
+                temperature=self.model_temperature
+            )
+
+            logger.info(f"最终步骤汇总结果：{result}")
+
+            final_system_message = self._to_system_messag_from_openai(chat_id=chat_id,origin_message=result)
+            save_message(final_system_message,db)
+
+            return final_system_message
+
+
+        except Exception as e:
+            # 步骤执行或最终汇总失败时，不要误记为 Plan 解析失败。
+            if plan_parsed:
+                raise
+
+            logger.error(f"Plan 解析失败，错误原因：{e}")
+            trace_seq_no += 1
+            self.trace_controller.create_plan_trace(
+                trace_id=trace_id,
+                chat_id=chat_id,
+                turn_no=turn_no,
+                step_no=1,
+                sequence_no=trace_seq_no,
+                prompt=plan_prompt,
+                content=raw_plan,
+                status="fail",
+                error=f"Plan 解析失败：{type(e).__name__}: {e}",
+                db=db,
+                event_type="plan_parse",
+                role="system",
+                name="plan_parser",
+                metadata={"phase": "parse_plan"},
+            )
+            plan_error_message = Messages(
+                chat_id=chat_id,
+                role="user",
+                content = f"构建计划失败了，错误原因：{e}"
+            )
+
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                temperature=self.model_temperature,
+                messages=[self._to_openai_message(plan_error_message)]
+            )
+
+            final = self._to_system_messag_from_openai(chat_id,response)
+            save_message(final,db)
+
+            print(f"final is : {final}")
+
+            return final
+
+        return all_plans

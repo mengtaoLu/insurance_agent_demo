@@ -73,6 +73,51 @@ class TraceController:
             metadata=response.metadata_,
         )
 
+    def create_plan_trace(
+        self,
+        *,
+        trace_id: str,
+        chat_id: int,
+        turn_no: int,
+        step_no: int,
+        sequence_no: int,
+        prompt: list[dict[str, Any]],
+        content: str | None,
+        status: str,
+        db: Session,
+        usage: dict[str, Any] | None = None,
+        finish_reason: str | None = None,
+        duration_ms: float | None = None,
+        output_tokens_per_second: float | None = None,
+        model_name: str | None = None,
+        error: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        event_type: str = "plan_generation",
+        role: str = "assistant",
+        name: str | None = None,
+    ) -> TraceEvent:
+        """记录 Plan 生成或解析阶段的事件。"""
+        return create_trace_event(
+            db=db,
+            trace_id=trace_id,
+            chat_id=chat_id,
+            turn_no=turn_no,
+            step_no=step_no,
+            sequence_no=sequence_no,
+            event_type=event_type,
+            status=status,
+            role=role,
+            name=name or model_name,
+            prompt=prompt,
+            content=content,
+            usage=usage,
+            finish_reason=finish_reason,
+            duration_ms=duration_ms,
+            output_tokens_per_second=output_tokens_per_second,
+            error=error,
+            metadata=metadata,
+        )
+
     def create_tool_trace(
         self,
         *,

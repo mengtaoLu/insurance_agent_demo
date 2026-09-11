@@ -141,3 +141,58 @@ class TraceEvent(Base):
         nullable=False,
     )
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class Plan(Base):
+    """计划当前状态；执行历史由 Trace 保存。"""
+
+    __tablename__ = "plan"
+    __table_args__ = (
+        CheckConstraint("status IN ('pending', 'running', 'success', 'failed', 'cancelled')"),
+        CheckConstraint("result IS NULL OR json_valid(result)"),
+        Index("idx_plan_chat", "chat_id", "id"),
+        Index("idx_plan_trace", "trace_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    chat_id: Mapped[int] = mapped_column(ForeignKey("chat.id"))
+    trace_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_input: Mapped[str] = mapped_column(Text)
+    goal: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String, server_default="pending")
+    result: Mapped[Any | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+    steps: Mapped[list["PlanStep"]] = relationship(
+        back_populates="plan", cascade="all, delete-orphan", order_by="PlanStep.step_seq"
+    )
+
+
+class PlanStep(Base):
+    """计划中的一步，可以包含多次 LLM 或工具调用。"""
+
+    __tablename__ = "plan_step"
+    __table_args__ = (
+        UniqueConstraint("plan_id", "step_seq", name="uq_plan_step_sequence"),
+        CheckConstraint("step_seq > 0"),
+        CheckConstraint("status IN ('pending', 'running', 'success', 'failed', 'skipped', 'cancelled')"),
+        CheckConstraint("result IS NULL OR json_valid(result)"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plan.id", ondelete="CASCADE"))
+    step_seq: Mapped[int] = mapped_column(Integer)
+    description: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String, server_default="pending")
+    result: Mapped[Any | None] = mapped_column(JSON(none_as_null=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
+    plan: Mapped["Plan"] = relationship(back_populates="steps")

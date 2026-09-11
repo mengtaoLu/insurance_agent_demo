@@ -22,6 +22,7 @@ templates = Jinja2Templates(directory="templates")
 @app.post('/chat')
 async def do_chat(
     message: str = Form(...),
+    plan_mode: bool = Form(False),
     user: User = Depends(get_current_user),
     db = Depends(get_db),
 ):
@@ -43,6 +44,21 @@ async def do_chat(
         content=content,
     ))
     db.commit()
+
+    if plan_mode:
+        await model.plan_execute(
+            user_input=content,
+            chat_id=chat.id,
+            db=db,
+            persist_user_message=False,
+        )
+    else:
+        await model.run(
+            user_input=content,
+            chat_id=chat.id,
+            db=db,
+            persist_user_message=False,
+        )
 
     return RedirectResponse(
         url=f"/chat/{chat.id}",
@@ -71,6 +87,7 @@ async def add_new_chat(
 async def to_new_chat(
     chat_id: int,
     message: str = Form(...),
+    plan_mode: bool = Form(False),
     user: User = Depends(get_current_user),
     db = Depends(get_db),
 ):
@@ -88,6 +105,12 @@ async def to_new_chat(
 
 
 
+    db.add(Messages(
+        chat_id=chat.id,
+        role="user",
+        content=content,
+    ))
+
     # 如果还是空标题，就用第一条消息生成标题
     if not chat.title:
         chat.title = content[:30]
@@ -96,7 +119,20 @@ async def to_new_chat(
 
     db.commit()
 
-    await model.run(chat_id=chat_id, db=db, user_input=message)
+    if plan_mode:
+        await model.plan_execute(
+            user_input=content,
+            chat_id=chat_id,
+            db=db,
+            persist_user_message=False,
+        )
+    else:
+        await model.run(
+            user_input=content,
+            chat_id=chat_id,
+            db=db,
+            persist_user_message=False,
+        )
 
     return RedirectResponse(
         url=f"/chat/{chat.id}",

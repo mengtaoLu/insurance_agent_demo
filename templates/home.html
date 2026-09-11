@@ -251,8 +251,9 @@
             margin: 0 auto;
 
             display: flex;
-            align-items: flex-end;
-            gap: 12px;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 8px;
 
             background: white;
 
@@ -262,6 +263,12 @@
             padding: 10px 12px;
 
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        }
+
+        .composer-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
         }
 
         textarea {
@@ -313,6 +320,31 @@
         .send-btn:disabled {
             cursor: not-allowed;
             opacity: 0.5;
+        }
+
+        .plan-toggle {
+            display: inline-flex;
+            align-items: center;
+            align-self: flex-start;
+            gap: 8px;
+            min-height: 32px;
+            padding: 0 8px;
+            color: #4b5563;
+            font-size: 13px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .plan-toggle input {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            accent-color: #2563eb;
+        }
+
+        .plan-toggle:has(input:checked) {
+            color: #1d4ed8;
+            font-weight: 600;
         }
 
         .trace-toggle-btn,
@@ -799,24 +831,36 @@
         id="message-form"
     >
 
-        <textarea
-            id="input"
-            name="message"
-            placeholder="给 Agent 发送消息..."
-            rows="1"
-            required
-        ></textarea>
+        <div class="composer-row">
+            <textarea
+                id="input"
+                name="message"
+                placeholder="给 Agent 发送消息..."
+                rows="1"
+                required
+            ></textarea>
 
-        <button
-            class="send-btn"
-            type="submit"
-            id="send-button"
-            aria-label="发送消息"
-            title="发送消息"
-            disabled
-        >
-            ↑
-        </button>
+            <button
+                class="send-btn"
+                type="submit"
+                id="send-button"
+                aria-label="发送消息"
+                title="发送消息"
+                disabled
+            >
+                ↑
+            </button>
+        </div>
+
+        <label class="plan-toggle" for="plan-mode">
+            <input
+                type="checkbox"
+                id="plan-mode"
+                name="plan_mode"
+                value="true"
+            >
+            <span>开启 Plan 模式</span>
+        </label>
 
     </form>
 

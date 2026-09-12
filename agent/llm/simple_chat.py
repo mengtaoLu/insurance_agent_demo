@@ -1,37 +1,20 @@
-import logging
-from openai import AsyncOpenAI
-from dotenv import load_dotenv
-import os
-from typing import Any
+"""兼容原有函数名；全部请求走 LLMClient，独立调用时及时关闭资源。"""
+from agent.llm.client import LLMClient, LLMMessage
 
-load_dotenv()
 
-logger = logging.getLogger(__name__)
+async def _chat(messages: list[LLMMessage], *, json_mode: bool, llm: LLMClient | None):
+    owned = llm is None
+    gateway = llm if llm is not None else LLMClient()
+    try:
+        return (await gateway.complete(messages, json_mode=json_mode)).response
+    finally:
+        if owned:
+            await gateway.close()
 
-def get_client():
-    base_url = os.getenv('base_url')
-    api_key = os.getenv('api_key')
 
-    return AsyncOpenAI(
-        base_url=base_url,
-        api_key=api_key
-    )
+async def simpleChat(messages: list[LLMMessage], *, llm: LLMClient | None = None):
+    return await _chat(messages, json_mode=False, llm=llm)
 
-async def simpleChat(messages:list[Any]):
-    """极简客户端，返回消息"""
-    client = get_client()
-    return await client.chat.completions.create(
-        model=os.getenv('model_name'),
-        messages=messages
-    )
 
-async def simpleStructChat(messages:list[Any]):
-    """极简客户端，返回格式化输出"""
-    client = get_client()
-    return await client.chat.completions.create(
-        model=os.getenv('model_name'),
-        messages=messages,
-        response_format={
-            "type":"json_object"
-        }
-    )
+async def simpleStructChat(messages: list[LLMMessage], *, llm: LLMClient | None = None):
+    return await _chat(messages, json_mode=True, llm=llm)

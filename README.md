@@ -1,5 +1,20 @@
 # Insurance Agent Demo
 
+## 2026-09-13 工程化整理
+
+保留工具、MCP、Trace、Plan 和增量记忆的现有实现，进行第一轮结构重构：
+
+- `Model` 保留入口，具体执行移至 `agent/runners/react.py` 和 `plan.py`。
+- `agent/llm/client.py` 统一模型请求、配置和指标；记忆也复用此依赖。
+- `agent/llm/messages.py` 集中消息转换；`ContextBuilder` 只接收普通数据并返回模型消息。
+- Web lifespan 管理模型资源；离线测试通过注入假模型隔离网络。
+- 循环步数耗尽不再误记为成功；数据库事务、计划持久化等留待后续。
+
+阅读前后对比、设计理由、兼容范围及用户/AI 分工：
+[工程化重构学习笔记](docs/engineering-refactor-notes.md)。
+
+以下为历史阶段记录，不代表当前全部能力。
+
 ## 2026-09-11 开发进展：Plan 模式
 
 当前主分支已在 ReAct、Trace 和 MCP 基础上增加 Plan-Execute：页面勾选 Plan 模式后，生成结构化计划、逐步调用 ReAct，最后汇总结果。普通模式继续使用 ReAct。

@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agent.context import ContextBuilder
+from agent.llm.client import LLMClient
 from agent.plan.system_plan import PlanOutPut, StepResult
 from db.entities import Base, Chat, Messages, PlanStep, TraceEvent, User
 from db.services.plans import create_plan, delete_plan
@@ -69,9 +70,14 @@ class PlanTests(unittest.TestCase):
             Messages(chat_id=self.chat.id, role="assistant", content="answer"),
         ])
         self.db.commit()
-        history = ContextBuilder()._get_history(self.chat.id, self.db, amount=2)
-        self.assertEqual([m.content for m in history], ["question", "answer"])
-        self.assertEqual(ContextBuilder()._get_history(self.chat.id, self.db, amount=0), [])
+        records = list(self.db.scalars(select(Messages).order_by(Messages.id)))
+        messages = [
+            {"role": m.role, "content": m.content, **(m.metadata_ or {})}
+            for m in records
+        ]
+        history = ContextBuilder.select_history(messages, amount=2)
+        self.assertEqual([m["content"] for m in history], ["question", "answer"])
+        self.assertEqual(ContextBuilder.select_history(messages, amount=0), [])
 
     def test_plan_execute_with_mock_model(self):
         from agent.llm.models import Model
@@ -87,17 +93,19 @@ class PlanTests(unittest.TestCase):
             )
 
         create = AsyncMock(side_effect=[
+            completion('{"topics":[]}'),
             completion('{"goal":"answer","steps":[{"step_seq":1,"description":"lookup"},{"step_seq":2,"description":"explain"}]}'),
             completion("step one result"),
             completion("step two result"),
             completion("final answer"),
         ])
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
-        with patch("agent.llm.models.AsyncOpenAI", return_value=client):
-            model = Model("test", tool_registry=ToolRegistry())
+        with patch("agent.llm.client.AsyncOpenAI", side_effect=AssertionError("测试禁止创建真实客户端")):
+            model = Model("test", tool_registry=ToolRegistry(),
+                          llm=LLMClient(client=client, model_name="fake"))
             result = asyncio.run(model.plan_execute("question", self.chat.id, self.db))
         self.assertEqual(result.content, "final answer")
-        self.assertEqual(create.await_count, 4)
+        self.assertEqual(create.await_count, 5)
         users = list(self.db.scalars(select(Messages).where(Messages.role == "user")))
         self.assertEqual(len(users), 1)
         events = list(self.db.scalars(select(TraceEvent).order_by(TraceEvent.sequence_no)))

@@ -13,9 +13,9 @@ from db.services.trace_events import get_trace_events_by_chat_id
 
 app = APIRouter()
 
-model = Model(
-    "你是一个保险金融的agent助手，可以帮助用户处理保单咨询问题，理赔问题等。"
-)
+def get_model(request: Request) -> Model:
+    """每个请求复用启动时组装的 Agent；不在导入页面时创建网络客户端。"""
+    return request.app.state.model
 
 templates = Jinja2Templates(directory="templates")
 
@@ -25,6 +25,7 @@ async def do_chat(
     plan_mode: bool = Form(False),
     user: User = Depends(get_current_user),
     db = Depends(get_db),
+    model: Model = Depends(get_model),
 ):
     """在未选择会话时发送消息：创建会话并保存第一条消息。"""
     content = message.strip()
@@ -90,6 +91,7 @@ async def to_new_chat(
     plan_mode: bool = Form(False),
     user: User = Depends(get_current_user),
     db = Depends(get_db),
+    model: Model = Depends(get_model),
 ):
     chat = db.scalar(
         select(Chat)

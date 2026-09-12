@@ -7,15 +7,23 @@ from web.pages.login import app as LoginApp
 from web.pages.chat import app as ChatApp
 
 from agent.tools.tool_registry import load_builtin_tools, close_mcp_tools
+from agent.llm.models import Model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    model = None
     try:
         await load_builtin_tools()
+        model = Model("你是一个保险金融的agent助手，可以帮助用户处理保单咨询问题，理赔问题等。")
+        app.state.model = model
         yield
     finally:
-        await close_mcp_tools()
+        try:
+            if model is not None:
+                await model.close()
+        finally:
+            await close_mcp_tools()
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(LoginApp)

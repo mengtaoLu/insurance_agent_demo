@@ -21,6 +21,7 @@ from agent.plan.system_plan import (
 )
 from uuid import uuid4
 from agent.context import ContextBuilder
+from agent.memory.memory_controller import refresh_memory
 
 logger = logging.getLogger(__name__)
 
@@ -342,7 +343,9 @@ class Model:
         ## 分解plan
         logger.info(f"开始分解plan：{user_input}")
 
-        context_builder = ContextBuilder(type="plan")
+        memory =  await refresh_memory(chat_id=chat_id,db=db)
+
+        context_builder = ContextBuilder(type="plan",memory=memory)
         plan_messages = context_builder.build_plan_context(
             chat_id=chat_id,
             db=db,
@@ -371,6 +374,8 @@ class Model:
         # trace_seq_no 始终表示当前 Trace 中最后一个已使用的序号。
         trace_seq_no = first_trace.sequence_no
         plan_prompt = [self._to_openai_message(m) for m in plan_messages]
+
+        logger.info(f"plan模式注入上下文：{plan_prompt}")
 
         started_at = perf_counter()
         try:

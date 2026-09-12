@@ -196,3 +196,44 @@ class PlanStep(Base):
         DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
     plan: Mapped["Plan"] = relationship(back_populates="steps")
+
+
+class ChatMemoryRecord(Base):
+    """每个会话一份当前记忆。LLM 输出模型仍使用 agent.memory 中的 ChatMemory。
+
+    memory 保存 {"topics": [...]}。更新时重新赋值整个字典，避免嵌套修改漏存。
+    last_processed_message_id 是处理游标，0 表示尚未处理，由程序按输入批次维护。
+    memory 和游标应在同一事务提交。所有时间采用 UTC。
+    """
+
+    __tablename__ = "chat_memory"
+    __table_args__ = (
+        UniqueConstraint("chat_id", name="uq_chat_memory_chat"),
+        CheckConstraint(
+            "json_valid(memory) AND json_type(memory) = 'object'",
+            name="ck_chat_memory_json",
+        ),
+        CheckConstraint(
+            "last_processed_message_id >= 0",
+            name="ck_chat_memory_cursor",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    chat_id: Mapped[int] = mapped_column(
+        ForeignKey("chat.id", ondelete="CASCADE"), nullable=False,
+    )
+    memory: Mapped[dict[str, Any]] = mapped_column(
+        JSON(none_as_null=True), nullable=False,
+        server_default='{"topics":[]}',
+    )
+    last_processed_message_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp(),
+        onupdate=func.current_timestamp(),
+    )

@@ -3,13 +3,14 @@ from sqlalchemy.orm import Session
 from db.services.messages import get_messages_by_chat_id
 from agent.tools.tool_spec import ToolSpec
 from agent.plan.system_plan import plan_prompts,PlanOutPut,StepResult
-from db.entities import Messages
+from db.entities import Messages,ChatMemoryRecord
 import json
 
 class ContextBuilder:
-    def __init__(self,type:Literal["plan","base"]="base") -> None:
+    def __init__(self,type:Literal["plan","base"]="base",memory:ChatMemoryRecord|None = None) -> None:
         # 背景构建的类型，base是普通构建方式
         self.type = type
+        self.memory = memory
 
     def build_my_context(self):
         pass
@@ -33,8 +34,19 @@ class ContextBuilder:
         plan_message = Messages(
             chat_id=chat_id,role="system",content=prompt
         )
+        messages = [plan_message]
+        ## 注入记忆
+        if self.memory:
+            messages.append(
+                Messages(chat_id=chat_id,role="user",content=f"""
+                当前对话的背景如下：
 
-        return [plan_message] + history
+                {self.memory.memory}
+
+            """)
+            )
+
+        return messages + history
 
     def build_step_context(self,user_input:str,current_step:int,full_plan:PlanOutPut,results:list[StepResult]=[]) -> list[dict[str,Any]]:
         system_prompt = """
